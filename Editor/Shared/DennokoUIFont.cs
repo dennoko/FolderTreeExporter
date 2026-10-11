@@ -40,7 +40,8 @@ namespace dennokoworks.FolderTreeExporter
             "フォルダーツリー構造アセットタイプ罫線プレビュー参照クリップボードコピー" +
             "ファイル最新版取得できませ確認中再更新あり件数囲む標準形式個直下配置言語英手動編集破棄" +
             "かがくこさしすただつてとなにのみらるれをんィウェキグジステデブモロン・一体全内力指見部" +
-            "。＆（）↻├└│─";
+            "。＆（）↻├└│─" +
+            "、「」うけごどへやよズャ上付併別利合場容接日本桁止注生種等終記貼釈防際？";
 
         private static FontAsset _font;
         private static bool _unavailable;     // 未搭載環境。CreateFontAsset を再試行しない

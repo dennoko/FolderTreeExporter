@@ -60,8 +60,8 @@ The window follows the dennokoworks floating design system and is composed of th
   - **Wrap in Code Block (```)**: Wraps the entire output with Markdown code fences (```` ``` ````).
 - **Preview Card**:
   - Displays a real-time preview of the generated tree using a monospace font.
-  - **"Manual Edit" Toggle (Added in v1.1)**: When enabled, you can directly edit and annotate the tree text in the preview area (e.g., adding remarks or notes next to folders). Automatic re-generation is locked while manual editing is active to prevent accidental loss of edits. "Copy to Clipboard" and "Save to File" will export your edited text.
-  - **"Refresh" Button**: Re-generates the tree from the project filesystem (prompts for confirmation if manual edits exist).
+  - **"Manual Edit" Toggle (Added in v1.1)**: When enabled, you can directly edit and annotate the tree text in the preview area (e.g., adding remarks or notes next to folders). Once you have edited the text, automatic re-generation (on project or setting changes) is locked to prevent accidental loss of edits, and "Copy to Clipboard" and "Save to File" export your edited text. Edits are kept across script recompiles. Manual editing is unavailable while the preview is truncated for a very large tree.
+  - **"Refresh" Button**: Re-generates the tree from the project filesystem (prompts for confirmation if manual edits exist; the same applies when changing the target folder).
 
 ### 3. Footer (Action Buttons)
 - **"Copy to Clipboard" Button**: Copies the entire generated tree text to your OS clipboard with a single click.
