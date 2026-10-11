@@ -1,26 +1,35 @@
 using System;
 using System.IO;
 using System.Text;
-using UnityEngine;
 using UnityEditor;
+using UnityEditor.UIElements;
+using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace dennokoworks.FolderTreeExporter
 {
     /// <summary>
     /// 指定フォルダの階層構造をテキストツリーとしてプレビュー・コピー・保存するウィンドウ。
-    /// ツリー生成は Core/FolderTreeBuilder に委譲する。
+    /// UI Toolkit (UXML/USS) および dennokoworks フローティングデザインシステムに準拠。
     /// </summary>
     public class FolderTreeExporterWindow : EditorWindow
     {
         private const string WindowTitle = "FolderTreeExporter";
 
-        // IMGUI のテキスト描画は 1 要素あたりの頂点数に上限があるため、プレビューのみ切り詰める。
-        // コピー・保存は常に全文を対象とする。
+        // UXML / USS の GUID
+        private const string UXML_GUID = "994b958f258b4a32969e96d541cc0cbd";
+        private const string USS_GUID  = "77885b25f67d49f8bc8942fc6734b65a";
+
+        // フォールバックパス
+        private const string FallbackUxmlPath = "Assets/dennokoworks/FolderTreeExporter/Editor/UI/FolderTreeExporterWindow.uxml";
+        private const string FallbackUssPath  = "Assets/dennokoworks/FolderTreeExporter/Editor/UI/DennokoTheme.uss";
+
         private const int PreviewMaxChars = 12000;
 
-        private static readonly string[] ModeLabels = { "フォルダ + アセットタイプ", "フォルダのみ", "ファイル込み" };
-        private static readonly string[] StyleLabels = { "標準ツリー（Unicode罫線）", "ASCIIツリー", "Markdownリスト" };
-        private static readonly string[] MonospaceFontNames = { "Consolas", "Menlo", "Courier New" };
+        private static readonly string[] ModeChoices = { "フォルダ + アセットタイプ", "フォルダのみ", "ファイル込み" };
+        private static readonly string[] StyleChoices = { "標準ツリー（Unicode罫線）", "ASCIIツリー", "Markdownリスト" };
+
+        public enum StatusType { Info, Success, Error }
 
         // ─── 設定（ドメインリロードをまたいで保持） ──────────────────────────
         [SerializeField] private DefaultAsset _folder;
@@ -31,14 +40,26 @@ namespace dennokoworks.FolderTreeExporter
 
         // ─── 生成結果 ────────────────────────────────────────────────────────
         private string _treeText = string.Empty;
-        private string _previewText = string.Empty;
-        private bool _previewTruncated;
-        private bool _previewSizeDirty = true;
-        private Vector2 _previewSize;
-        private Vector2 _previewScroll;
 
-        private GUIStyle _previewStyle;
-        private GUIStyle _dropAreaStyle;
+        // ─── UI 要素参照 ─────────────────────────────────────────────────────
+        private ObjectField _folderField;
+        private Button _browseButton;
+        private VisualElement _dropArea;
+        private DropdownField _modeDropdown;
+        private DropdownField _styleDropdown;
+        private Toggle _showCountsToggle;
+        private Toggle _codeBlockToggle;
+        private Button _refreshButton;
+        private TextField _previewField;
+        private Button _copyButton;
+        private Button _saveButton;
+        private Label _statusLabel;
+        private Label _versionLabel;
+        private Button _versionReloadButton;
+
+        private IVisualElementScheduledItem _statusResetSchedule;
+        private DennokoVersionChecker.Result _versionResult =
+            new DennokoVersionChecker.Result { State = DennokoVersionChecker.State.Checking, LocalVersion = "0.0.0" };
 
         // ─── Window Registration ─────────────────────────────────────────────
         [MenuItem("dennokoworks/FolderTreeExporter")]
@@ -63,12 +84,12 @@ namespace dennokoworks.FolderTreeExporter
         private static FolderTreeExporterWindow Open()
         {
             var window = GetWindow<FolderTreeExporterWindow>(WindowTitle);
-            window.minSize = new Vector2(380, 360);
+            window.titleContent = new GUIContent(WindowTitle);
+            window.minSize = new Vector2(380, 420);
             window.Show();
             return window;
         }
 
-        // Project ウィンドウ左ペイン（2 カラム時）の選択も拾えるよう assetGUIDs を使う。
         private static DefaultAsset GetSelectedFolder()
         {
             string[] guids = Selection.assetGUIDs;
@@ -89,64 +110,314 @@ namespace dennokoworks.FolderTreeExporter
             return AssetDatabase.IsValidFolder(path) ? path : null;
         }
 
-        // ─── Lifecycle ───────────────────────────────────────────────────────
-        private void OnEnable()
+        // ─── UI Toolkit Lifecycle ────────────────────────────────────────────
+        public void CreateGUI()
         {
+            VisualElement root = rootVisualElement;
+            root.Clear();
+
+            // テーマ非依存のためのルートクラスを適用
+            root.AddToClassList("dennoko-root");
+            root.style.backgroundColor = (Color)new Color32(0x12, 0x12, 0x12, 0xFF);
+            root.style.flexGrow = 1;
+
+            // 標準フォント（メイリオ SDF）の適用
+            DennokoUIFont.Apply(root);
+
+            // USS のロードと適用
+            string ussPath = AssetDatabase.GUIDToAssetPath(USS_GUID);
+            if (string.IsNullOrEmpty(ussPath)) ussPath = FallbackUssPath;
+            var uss = AssetDatabase.LoadAssetAtPath<StyleSheet>(ussPath);
+            if (uss != null)
+            {
+                root.styleSheets.Add(uss);
+            }
+            else
+            {
+                Debug.LogWarning($"[FolderTreeExporterWindow] USS が見つかりません: {ussPath}");
+            }
+
+            // UXML のロードとインスタンス化
+            string uxmlPath = AssetDatabase.GUIDToAssetPath(UXML_GUID);
+            if (string.IsNullOrEmpty(uxmlPath)) uxmlPath = FallbackUxmlPath;
+            var uxml = AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(uxmlPath);
+            if (uxml == null)
+            {
+                root.Add(new Label($"UXML Asset が見つかりません: {uxmlPath}"));
+                return;
+            }
+            uxml.CloneTree(root);
+
+            InitializeUI(root);
+            UpdateUIFromState();
             Regenerate();
+
+            StartVersionCheck();
         }
 
-        // プロジェクト内のファイル構成が変わったらプレビューを追従させる。
         private void OnProjectChange()
         {
             Regenerate();
-            Repaint();
         }
 
-        // ─── ビジネスロジック ───────────────────────────────────────────────
-        private void SetFolder(DefaultAsset folder)
+        // ─── UI 初期化 & バインディング ──────────────────────────────────────
+        private void InitializeUI(VisualElement root)
+        {
+            _versionLabel = root.Q<Label>("version-label");
+            _versionReloadButton = root.Q<Button>("version-reload-button");
+            if (_versionReloadButton != null)
+            {
+                _versionReloadButton.tooltip = "アップデートを再確認";
+                _versionReloadButton.clicked += () =>
+                {
+                    FolderTreeExporterVersion.ForceRecheck();
+                    LoadVersionResultFromSessionState();
+                };
+            }
+
+            _folderField = root.Q<ObjectField>("folder-field");
+            if (_folderField != null)
+            {
+                _folderField.objectType = typeof(DefaultAsset);
+                _folderField.allowSceneObjects = false;
+                _folderField.RegisterValueChangedCallback(evt =>
+                {
+                    var newFolder = evt.newValue as DefaultAsset;
+                    if (newFolder != null && GetValidFolderPath(newFolder) == null)
+                    {
+                        SetStatus("指定されたアセットは有効なフォルダではありません。", StatusType.Error);
+                        _folderField.SetValueWithoutNotify(_folder);
+                        return;
+                    }
+                    SetFolder(newFolder);
+                });
+            }
+
+            _browseButton = root.Q<Button>("browse-button");
+            if (_browseButton != null)
+            {
+                _browseButton.clicked += BrowseFolder;
+            }
+
+            _dropArea = root.Q<VisualElement>("folder-drop-area");
+            if (_dropArea != null)
+            {
+                SetupDropArea(_dropArea);
+            }
+
+            _modeDropdown = root.Q<DropdownField>("mode-dropdown");
+            if (_modeDropdown != null)
+            {
+                _modeDropdown.choices = new System.Collections.Generic.List<string>(ModeChoices);
+                _modeDropdown.index = (int)_mode;
+                _modeDropdown.RegisterValueChangedCallback(evt =>
+                {
+                    int idx = ModeChoices.Length > 0 ? Array.IndexOf(ModeChoices, evt.newValue) : -1;
+                    if (idx >= 0)
+                    {
+                        _mode = (TreeOutputMode)idx;
+                        UpdateOptionAvailability();
+                        Regenerate();
+                    }
+                });
+            }
+
+            _styleDropdown = root.Q<DropdownField>("style-dropdown");
+            if (_styleDropdown != null)
+            {
+                _styleDropdown.choices = new System.Collections.Generic.List<string>(StyleChoices);
+                _styleDropdown.index = (int)_style;
+                _styleDropdown.RegisterValueChangedCallback(evt =>
+                {
+                    int idx = StyleChoices.Length > 0 ? Array.IndexOf(StyleChoices, evt.newValue) : -1;
+                    if (idx >= 0)
+                    {
+                        _style = (TreeStyle)idx;
+                        Regenerate();
+                    }
+                });
+            }
+
+            _showCountsToggle = root.Q<Toggle>("show-counts-toggle");
+            if (_showCountsToggle != null)
+            {
+                _showCountsToggle.value = _showAssetCounts;
+                _showCountsToggle.RegisterValueChangedCallback(evt =>
+                {
+                    _showAssetCounts = evt.newValue;
+                    Regenerate();
+                });
+            }
+
+            _codeBlockToggle = root.Q<Toggle>("code-block-toggle");
+            if (_codeBlockToggle != null)
+            {
+                _codeBlockToggle.value = _wrapInCodeBlock;
+                _codeBlockToggle.RegisterValueChangedCallback(evt =>
+                {
+                    _wrapInCodeBlock = evt.newValue;
+                    Regenerate();
+                });
+            }
+
+            _refreshButton = root.Q<Button>("refresh-button");
+            if (_refreshButton != null)
+            {
+                _refreshButton.clicked += Regenerate;
+            }
+
+            _previewField = root.Q<TextField>("preview-field");
+
+            _copyButton = root.Q<Button>("copy-button");
+            if (_copyButton != null)
+            {
+                _copyButton.clicked += CopyToClipboard;
+            }
+
+            _saveButton = root.Q<Button>("save-button");
+            if (_saveButton != null)
+            {
+                _saveButton.clicked += ShowSaveMenu;
+            }
+
+            _statusLabel = root.Q<Label>("status-label");
+        }
+
+        private void UpdateUIFromState()
+        {
+            if (_folderField != null) _folderField.SetValueWithoutNotify(_folder);
+            if (_modeDropdown != null) _modeDropdown.SetValueWithoutNotify(ModeChoices[(int)_mode]);
+            if (_styleDropdown != null) _styleDropdown.SetValueWithoutNotify(StyleChoices[(int)_style]);
+            if (_showCountsToggle != null) _showCountsToggle.SetValueWithoutNotify(_showAssetCounts);
+            if (_codeBlockToggle != null) _codeBlockToggle.SetValueWithoutNotify(_wrapInCodeBlock);
+            UpdateOptionAvailability();
+        }
+
+        private void UpdateOptionAvailability()
+        {
+            if (_showCountsToggle != null)
+            {
+                _showCountsToggle.SetEnabled(_mode == TreeOutputMode.FoldersWithAssetTypes);
+            }
+        }
+
+        private void SetupDropArea(VisualElement dropArea)
+        {
+            dropArea.RegisterCallback<DragUpdatedEvent>(evt =>
+            {
+                DefaultAsset folder = GetDraggedFolder();
+                if (folder != null)
+                {
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+                    dropArea.AddToClassList("folder-drop-area--dragover");
+                }
+                else
+                {
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Rejected;
+                    dropArea.RemoveFromClassList("folder-drop-area--dragover");
+                }
+                evt.StopPropagation();
+            });
+
+            dropArea.RegisterCallback<DragLeaveEvent>(evt =>
+            {
+                dropArea.RemoveFromClassList("folder-drop-area--dragover");
+                evt.StopPropagation();
+            });
+
+            dropArea.RegisterCallback<DragPerformEvent>(evt =>
+            {
+                dropArea.RemoveFromClassList("folder-drop-area--dragover");
+                DefaultAsset folder = GetDraggedFolder();
+                if (folder != null)
+                {
+                    DragAndDrop.AcceptDrag();
+                    SetFolder(folder);
+                }
+                evt.StopPropagation();
+            });
+        }
+
+        private static DefaultAsset GetDraggedFolder()
+        {
+            foreach (string path in DragAndDrop.paths)
+            {
+                DefaultAsset folder = LoadFolder(path);
+                if (folder != null) return folder;
+            }
+            return null;
+        }
+
+        // ─── ロジック ────────────────────────────────────────────────────────
+        public void SetFolder(DefaultAsset folder)
         {
             _folder = folder;
-            _previewScroll = Vector2.zero;
+            if (_folderField != null) _folderField.SetValueWithoutNotify(_folder);
             Regenerate();
-            Repaint();
         }
 
         private void Regenerate()
         {
             string path = GetValidFolderPath(_folder);
-            _treeText = path == null
-                ? string.Empty
-                : FolderTreeBuilder.Build(path, new TreeBuildOptions
-                {
-                    Mode = _mode,
-                    Style = _style,
-                    ShowAssetCounts = _showAssetCounts,
-                    WrapInCodeBlock = _wrapInCodeBlock,
-                });
+            if (string.IsNullOrEmpty(path))
+            {
+                _treeText = string.Empty;
+                if (_previewField != null) _previewField.value = "フォルダを指定するとツリーが表示されます。";
+                SetActionButtonsEnabled(false);
+                return;
+            }
 
-            _previewTruncated = _treeText.Length > PreviewMaxChars;
-            if (_previewTruncated)
+            _treeText = FolderTreeBuilder.Build(path, new TreeBuildOptions
             {
-                // 行の途中で切れないよう、上限以前の最後の改行までを表示する。
-                int cut = _treeText.LastIndexOf('\n', PreviewMaxChars);
-                _previewText = _treeText.Substring(0, cut > 0 ? cut : PreviewMaxChars);
-            }
-            else
+                Mode = _mode,
+                Style = _style,
+                ShowAssetCounts = _showAssetCounts,
+                WrapInCodeBlock = _wrapInCodeBlock,
+            });
+
+            if (_previewField != null)
             {
-                _previewText = _treeText.TrimEnd('\n');
+                if (_treeText.Length > PreviewMaxChars)
+                {
+                    int cut = _treeText.LastIndexOf('\n', PreviewMaxChars);
+                    string preview = _treeText.Substring(0, cut > 0 ? cut : PreviewMaxChars);
+                    _previewField.value = preview + "\n\n... (プレビューは一部のみ表示されています。コピー・保存は全体が対象です)";
+                }
+                else
+                {
+                    _previewField.value = _treeText.TrimEnd('\n');
+                }
             }
-            _previewSizeDirty = true;
+
+            SetActionButtonsEnabled(!string.IsNullOrEmpty(_treeText));
+        }
+
+        private void SetActionButtonsEnabled(bool enabled)
+        {
+            _copyButton?.SetEnabled(enabled);
+            _saveButton?.SetEnabled(enabled);
         }
 
         private void CopyToClipboard()
         {
+            if (string.IsNullOrEmpty(_treeText)) return;
             EditorGUIUtility.systemCopyBuffer = _treeText;
-            ShowNotification(new GUIContent("クリップボードにコピーしました"), 1.5);
+            SetStatus("クリップボードにコピーしました", StatusType.Success);
+        }
+
+        private void ShowSaveMenu()
+        {
+            if (string.IsNullOrEmpty(_treeText)) return;
+            var menu = new GenericMenu();
+            menu.AddItem(new GUIContent("テキスト (.txt)"), false, () => SaveToFile("txt"));
+            menu.AddItem(new GUIContent("Markdown (.md)"), false, () => SaveToFile("md"));
+            menu.ShowAsContext();
         }
 
         private void SaveToFile(string extension)
         {
-            string defaultName = Path.GetFileName(GetValidFolderPath(_folder)) + "_tree";
+            string folderName = Path.GetFileName(GetValidFolderPath(_folder)) ?? "tree";
+            string defaultName = folderName + "_tree";
             string path = EditorUtility.SaveFilePanel("フォルダツリーを保存", string.Empty, defaultName, extension);
             if (string.IsNullOrEmpty(path)) return;
 
@@ -157,15 +428,14 @@ namespace dennokoworks.FolderTreeExporter
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
             {
                 Debug.LogError($"[FolderTreeExporter] 保存に失敗しました: {path}\n{e.Message}");
-                EditorUtility.DisplayDialog(WindowTitle, "ファイルの保存に失敗しました。\n" + e.Message, "OK");
+                SetStatus("ファイルの保存に失敗しました: " + e.Message, StatusType.Error);
                 return;
             }
 
-            // プロジェクト内へ保存した場合は Project ウィンドウに反映する。
             if (!string.IsNullOrEmpty(FileUtil.GetProjectRelativePath(path.Replace('\\', '/'))))
                 AssetDatabase.Refresh();
 
-            ShowNotification(new GUIContent("保存しました: " + Path.GetFileName(path)), 2.0);
+            SetStatus("保存しました: " + Path.GetFileName(path), StatusType.Success);
         }
 
         private void BrowseFolder()
@@ -184,170 +454,89 @@ namespace dennokoworks.FolderTreeExporter
             SetFolder(folder);
         }
 
-        // ─── OnGUI ───────────────────────────────────────────────────────────
-        private void OnGUI()
+        // ─── ステータスバー ──────────────────────────────────────────────────
+        private void SetStatus(string message, StatusType type, long autoResetMs = 3000)
         {
-            InitStyles();
+            if (_statusLabel == null) return;
 
-            EditorGUILayout.Space(6);
-            DrawHeader();
-            EditorGUILayout.Space(6);
-            DrawOptions();
-            EditorGUILayout.Space(6);
-            DrawActions();
-            EditorGUILayout.Space(6);
-            DrawPreview();
+            _statusLabel.text = message;
+            _statusLabel.EnableInClassList("dennoko-status--success", type == StatusType.Success);
+            _statusLabel.EnableInClassList("dennoko-status--error",   type == StatusType.Error);
+
+            _statusResetSchedule?.Pause();
+            if (type != StatusType.Info)
+            {
+                _statusResetSchedule = _statusLabel.schedule
+                    .Execute(() => SetStatus("Ready", StatusType.Info))
+                    .StartingIn(autoResetMs);
+            }
         }
 
-        private void InitStyles()
+        // ─── バージョンチェック ──────────────────────────────────────────────
+        private void StartVersionCheck()
         {
-            if (_previewStyle != null) return;
+            LoadVersionResultFromSessionState();
+            FolderTreeExporterVersion.StartCheckBackgroundTask();
+        }
 
-            _previewStyle = new GUIStyle(EditorStyles.textArea) { wordWrap = false, richText = false };
-            // 罫線の桁が揃うよう、OS に等幅フォントがあれば使う。
-            Font font = Font.CreateDynamicFontFromOSFont(MonospaceFontNames, 12);
-            if (font != null)
-            {
-                _previewStyle.font = font;
-                _previewStyle.fontSize = 12;
-            }
+        internal void LoadVersionResultFromSessionState()
+        {
+            string local  = FolderTreeExporterVersion.Current;
+            string latest = SessionState.GetString(FolderTreeExporterVersion.VerCheckLatestKey, string.Empty);
+            bool   done   = SessionState.GetBool(FolderTreeExporterVersion.VerCheckDoneKey, false);
+            bool   error  = SessionState.GetBool(FolderTreeExporterVersion.VerCheckErrorKey, false);
 
-            _dropAreaStyle = new GUIStyle(EditorStyles.helpBox)
+            DennokoVersionChecker.State state;
+            if (!done)
+                state = DennokoVersionChecker.State.Checking;
+            else if (error || string.IsNullOrEmpty(latest))
+                state = DennokoVersionChecker.State.Error;
+            else if (DennokoVersionChecker.IsUpdateAvailable(latest, local))
+                state = DennokoVersionChecker.State.UpdateAvailable;
+            else
+                state = DennokoVersionChecker.State.UpToDate;
+
+            _versionResult = new DennokoVersionChecker.Result
             {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 11,
+                State = state,
+                LocalVersion = local,
+                LatestVersion = latest,
+                Url = SessionState.GetString(FolderTreeExporterVersion.VerCheckUrlKey, string.Empty),
+                Message = SessionState.GetString(FolderTreeExporterVersion.VerCheckMessageKey, string.Empty)
             };
+            ApplyVersionLabel();
         }
 
-        // ─── ヘッダー部: フォルダ選択 ────────────────────────────────────────
-        private void DrawHeader()
+        private void ApplyVersionLabel()
         {
-            GUILayout.BeginHorizontal();
-            EditorGUI.BeginChangeCheck();
-            var folder = (DefaultAsset)EditorGUILayout.ObjectField("対象フォルダ", _folder, typeof(DefaultAsset), false);
-            if (EditorGUI.EndChangeCheck()) SetFolder(folder);
-            if (GUILayout.Button("参照", GUILayout.Width(48))) BrowseFolder();
-            GUILayout.EndHorizontal();
+            if (_versionLabel == null) return;
 
-            if (_folder != null && GetValidFolderPath(_folder) == null)
-                EditorGUILayout.HelpBox("フォルダを指定してください。", MessageType.Warning);
+            var r = _versionResult;
+            string baseText = "v" + r.LocalVersion;
+            string text;
+            bool update = false, error = false;
 
-            Rect dropRect = GUILayoutUtility.GetRect(0, 36, GUILayout.ExpandWidth(true));
-            GUI.Box(dropRect, "ここに Project ウィンドウからフォルダをドラッグ＆ドロップ", _dropAreaStyle);
-            HandleDragAndDrop(dropRect);
-        }
-
-        private void HandleDragAndDrop(Rect dropRect)
-        {
-            Event evt = Event.current;
-            if (evt.type != EventType.DragUpdated && evt.type != EventType.DragPerform) return;
-            if (!dropRect.Contains(evt.mousePosition)) return;
-
-            DefaultAsset folder = null;
-            foreach (string path in DragAndDrop.paths)
+            switch (r.State)
             {
-                folder = LoadFolder(path);
-                if (folder != null) break;
+                case DennokoVersionChecker.State.UpdateAvailable:
+                    text = $"{baseText}  更新あり {r.LatestVersion}";
+                    update = true;
+                    break;
+                case DennokoVersionChecker.State.Error:
+                    text = $"{baseText}  最新版を取得できません";
+                    error = true;
+                    break;
+                case DennokoVersionChecker.State.Checking:
+                    text = $"{baseText}  確認中...";
+                    break;
+                default:
+                    text = baseText;
+                    break;
             }
 
-            DragAndDrop.visualMode = folder != null ? DragAndDropVisualMode.Copy : DragAndDropVisualMode.Rejected;
-            if (evt.type == EventType.DragPerform && folder != null)
-            {
-                DragAndDrop.AcceptDrag();
-                SetFolder(folder);
-            }
-            evt.Use();
-        }
-
-        // ─── 設定・オプション部 ──────────────────────────────────────────────
-        private void DrawOptions()
-        {
-            EditorGUI.BeginChangeCheck();
-
-            var mode = (TreeOutputMode)EditorGUILayout.Popup("出力モード", (int)_mode, ModeLabels);
-            var style = (TreeStyle)EditorGUILayout.Popup("ツリータイプ", (int)_style, StyleLabels);
-
-            bool showCounts;
-            using (new EditorGUI.DisabledGroupScope(mode != TreeOutputMode.FoldersWithAssetTypes))
-            {
-                showCounts = EditorGUILayout.ToggleLeft(
-                    new GUIContent("アセット件数を表示", "「フォルダ + アセットタイプ」モードで、種別ごとのファイル件数を併記します。"),
-                    _showAssetCounts);
-            }
-
-            bool wrapInCodeBlock = EditorGUILayout.ToggleLeft(
-                new GUIContent("Markdownコードブロックで囲む (```)", "出力全体を ``` で囲みます。Discord や GitHub 等へ貼り付ける際の桁ズレ防止用です。"),
-                _wrapInCodeBlock);
-
-            if (EditorGUI.EndChangeCheck())
-            {
-                _mode = mode;
-                _style = style;
-                _showAssetCounts = showCounts;
-                _wrapInCodeBlock = wrapInCodeBlock;
-                Regenerate();
-            }
-        }
-
-        // ─── アクション部 ────────────────────────────────────────────────────
-        private void DrawActions()
-        {
-            using (new EditorGUI.DisabledGroupScope(string.IsNullOrEmpty(_treeText)))
-            {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("クリップボードにコピー", GUILayout.Height(26)))
-                    CopyToClipboard();
-
-                // OS の保存ダイアログは拡張子を 1 つしか指定できないため、先に形式を選ばせる。
-                if (GUILayout.Button("ファイルに保存", GUILayout.Height(26)))
-                {
-                    var menu = new GenericMenu();
-                    menu.AddItem(new GUIContent("テキスト (.txt)"), false, () => SaveToFile("txt"));
-                    menu.AddItem(new GUIContent("Markdown (.md)"), false, () => SaveToFile("md"));
-                    menu.ShowAsContext();
-                }
-                GUILayout.EndHorizontal();
-            }
-        }
-
-        // ─── プレビュー部 ────────────────────────────────────────────────────
-        private void DrawPreview()
-        {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("プレビュー", EditorStyles.boldLabel);
-            GUILayout.FlexibleSpace();
-            using (new EditorGUI.DisabledGroupScope(GetValidFolderPath(_folder) == null))
-            {
-                if (GUILayout.Button("更新", EditorStyles.miniButton, GUILayout.Width(48)))
-                    Regenerate();
-            }
-            GUILayout.EndHorizontal();
-
-            if (string.IsNullOrEmpty(_treeText))
-            {
-                EditorGUILayout.HelpBox("フォルダを指定するとツリーが表示されます。", MessageType.Info);
-                return;
-            }
-
-            if (_previewTruncated)
-            {
-                EditorGUILayout.HelpBox(
-                    "ツリーが大きいため、プレビューは先頭部分のみ表示しています。コピー・保存は全体が対象です。",
-                    MessageType.Info);
-            }
-
-            if (_previewSizeDirty)
-            {
-                _previewSize = _previewStyle.CalcSize(new GUIContent(_previewText));
-                _previewSizeDirty = false;
-            }
-
-            _previewScroll = EditorGUILayout.BeginScrollView(_previewScroll, GUILayout.ExpandHeight(true));
-            // SelectableLabel は読み取り専用のまま、範囲選択・全選択 (Ctrl/Cmd+A)・コピーができる。
-            Rect rect = GUILayoutUtility.GetRect(
-                _previewSize.x, _previewSize.y, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
-            EditorGUI.SelectableLabel(rect, _previewText, _previewStyle);
-            EditorGUILayout.EndScrollView();
+            _versionLabel.text = text;
+            _versionLabel.EnableInClassList("dennoko-version-label--update", update);
+            _versionLabel.EnableInClassList("dennoko-version-label--error", error);
         }
     }
 }

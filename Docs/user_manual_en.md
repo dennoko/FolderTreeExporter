@@ -40,27 +40,34 @@ The window will open with the selected folder automatically assigned as the targ
 
 ## 3. Window Layout & Basic Operations
 
-The window consists of four primary sections:
+The window follows the dennokoworks floating design system and is composed of the following sections:
 
-### 1. Header (Folder Selection)
-- **Target Folder Field**: Displays the currently selected folder asset. You can also pick a folder directly using the Unity Object picker.
-- **"Browse" Button**: Opens a folder selection dialog to choose any folder under `Assets`.
-- **Drag & Drop Area**: Drag and drop any folder from the Project window into the box area to instantly set or switch the target.
+### 1. Top Bar (Header)
+- **Window Title**: `FolderTreeExporter`
+- **Version Label**: Displays the current local version (e.g., `v1.0.0`). The tool periodically checks the remote GitHub repository (`master` branch) in the background and highlights when an update is available in green.
+- **Reload Button (`↻`)**: Instantly re-checks GitHub for newer releases.
 
-### 2. Settings & Options
-- **Output Mode**: Select what elements to include in the tree (*Folders with Asset Types* / *Folders Only* / *With Files*).
-- **Tree Style**: Choose the formatting glyph style (*Standard Unicode Tree* / *ASCII Tree* / *Markdown List*).
-- **Show Asset Counts**: Toggles whether to display file counts next to each asset type tag (e.g., `[Texture: 5, Material: 2]`).
-- **Wrap in Code Block (```)**: Wraps the entire output with Markdown code fences (```` ``` ````).
+### 2. Main Scrollable Area (Cards)
+- **Target Folder Card**:
+  - **Target Folder Field**: Displays the currently selected folder asset. You can also pick a folder directly using the Unity Object picker.
+  - **"Browse" Button**: Opens a folder selection dialog to choose any folder under `Assets`.
+  - **Drag & Drop Area**: Drag and drop any folder from the Project window into the box area to instantly set or switch the target.
+- **Settings & Options Card**:
+  - **Output Mode**: Select what elements to include in the tree (*Folders with Asset Types* / *Folders Only* / *With Files*).
+  - **Tree Style**: Choose the formatting glyph style (*Standard Unicode Tree* / *ASCII Tree* / *Markdown List*).
+  - **Show Asset Counts**: Toggles whether to display file counts next to each asset type tag (e.g., `[Texture: 5, Material: 2]`).
+  - **Wrap in Code Block (```)**: Wraps the entire output with Markdown code fences (```` ``` ````).
+- **Preview Card**:
+  - Displays a real-time preview of the generated tree using a monospace font.
+  - The text area is read-only, but supports mouse selection and select-all (`Ctrl+A` / `Cmd+A`) for manual copying.
+  - The preview automatically updates whenever files or directories are added, deleted, or renamed within the project (you can also manually refresh via the "Refresh" button).
 
-### 3. Actions
+### 3. Footer (Action Buttons)
 - **"Copy to Clipboard" Button**: Copies the entire generated tree text to your OS clipboard with a single click.
 - **"Save to File" Button**: Opens a popup menu to save the output as either a plain text file (`.txt`) or a Markdown file (`.md`).
 
-### 4. Preview Area
-- Displays a real-time preview of the generated tree using a monospace font (automatically selected based on OS availability).
-- The text area is read-only, but supports mouse selection and select-all (`Ctrl+A` / `Cmd+A`) for manual copying.
-- The preview automatically updates whenever files or directories are added, deleted, or renamed within the project (you can also manually refresh via the top-right "Refresh" button).
+### 4. Status Bar
+- Displays temporary confirmation messages upon copying or saving files.
 
 > [!NOTE]
 > For very large folder structures, the preview area truncates rendering after a safe threshold to prevent Unity IMGUI rendering lag. However, the "Copy to Clipboard" and "Save to File" actions will always export the **complete, full-length** text.
