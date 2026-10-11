@@ -632,4 +632,11 @@
     margin: 0;
 }
 
+/* 手動編集トグル */
+.dennoko-root .manual-edit-toggle {
+    margin: 0 8px 0 0;
+    align-self: center;
+}
+
+
 

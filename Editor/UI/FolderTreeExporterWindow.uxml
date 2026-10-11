@@ -39,7 +39,10 @@
         <ui:VisualElement class="dennoko-card" style="flex-grow: 1;">
             <ui:VisualElement class="dennoko-card-header dennoko-toggle-header">
                 <ui:Label name="preview-title" text="プレビュー" class="dennoko-section-title" />
-                <ui:Button name="refresh-button" text="更新" class="dennoko-button-secondary" style="width: 50px;" />
+                <ui:VisualElement class="dennoko-hrow">
+                    <ui:Toggle name="manual-edit-toggle" text="手動編集" class="manual-edit-toggle" />
+                    <ui:Button name="refresh-button" text="更新" class="dennoko-button-secondary" style="width: 50px;" />
+                </ui:VisualElement>
             </ui:VisualElement>
             <ui:TextField name="preview-field" multiline="true" readonly="true" class="tree-preview-field" />
         </ui:VisualElement>
