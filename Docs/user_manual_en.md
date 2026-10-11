@@ -46,6 +46,7 @@ The window follows the dennokoworks floating design system and is composed of th
 - **Window Title**: `FolderTreeExporter`
 - **Version Label**: Displays the current local version (e.g., `v1.0.0`). The tool periodically checks the remote GitHub repository (`master` branch) in the background and highlights when an update is available in green.
 - **Reload Button (`↻`)**: Instantly re-checks GitHub for newer releases.
+- **Language Switch Button (`EN` / `JA`)**: Toggles the interface language between English and Japanese (Default: Japanese). Your language preference is saved across sessions.
 
 ### 2. Main Scrollable Area (Cards)
 - **Target Folder Card**:

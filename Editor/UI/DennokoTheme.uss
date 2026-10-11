@@ -623,3 +623,13 @@
     overflow: hidden;
 }
 
+/* 言語切替ボタン */
+.dennoko-root .lang-button {
+    font-size: 11px;
+    height: 22px;
+    min-width: 32px;
+    padding: 0 6px;
+    margin: 0;
+}
+
+

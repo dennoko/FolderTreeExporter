@@ -1,12 +1,13 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements">
 
-    <!-- ヘッダー (タイトル + バージョン表示 + ↻ 再確認ボタン) -->
+    <!-- ヘッダー (タイトル + バージョン表示 + ↻ 再確認ボタン + 言語切替ボタン) -->
     <ui:VisualElement class="dennoko-header">
         <ui:VisualElement class="dennoko-header-titlegroup">
             <ui:Label text="FolderTreeExporter" class="dennoko-title" />
             <ui:Label name="version-label" text="" class="dennoko-version-label" />
             <ui:Button name="version-reload-button" text="↻" class="dennoko-version-reload-button" />
         </ui:VisualElement>
+        <ui:Button name="lang-button" text="EN" class="dennoko-button-secondary lang-button" />
     </ui:VisualElement>
     <ui:VisualElement class="dennoko-separator" />
 
@@ -15,19 +16,19 @@
 
         <!-- 対象フォルダ カード -->
         <ui:VisualElement class="dennoko-card">
-            <ui:Label text="TARGET FOLDER" class="dennoko-section-title dennoko-card-header" />
+            <ui:Label name="target-folder-title" text="対象フォルダ" class="dennoko-section-title dennoko-card-header" />
             <ui:VisualElement class="dennoko-hrow">
                 <uie:ObjectField name="folder-field" label="フォルダ" class="dennoko-col-grow" />
                 <ui:Button name="browse-button" text="参照" style="width: 50px; flex-shrink: 0;" />
             </ui:VisualElement>
             <ui:VisualElement name="folder-drop-area" class="folder-drop-area">
-                <ui:Label text="ここに Project ウィンドウからフォルダをドラッグ＆ドロップ" class="folder-drop-area-text" />
+                <ui:Label name="drop-area-text" text="ここに Project ウィンドウからフォルダをドラッグ＆ドロップ" class="folder-drop-area-text" />
             </ui:VisualElement>
         </ui:VisualElement>
 
         <!-- 設定・オプション カード -->
         <ui:VisualElement class="dennoko-card">
-            <ui:Label text="SETTINGS" class="dennoko-section-title dennoko-card-header" />
+            <ui:Label name="settings-title" text="設定" class="dennoko-section-title dennoko-card-header" />
             <ui:DropdownField name="mode-dropdown" label="出力モード" />
             <ui:DropdownField name="style-dropdown" label="ツリータイプ" />
             <ui:Toggle name="show-counts-toggle" text="アセット件数を表示" tooltip="「フォルダ + アセットタイプ」モードで、種別ごとのファイル件数を併記します。" style="margin-top: 6px;" />
@@ -37,7 +38,7 @@
         <!-- プレビュー カード -->
         <ui:VisualElement class="dennoko-card" style="flex-grow: 1;">
             <ui:VisualElement class="dennoko-card-header dennoko-toggle-header">
-                <ui:Label text="PREVIEW" class="dennoko-section-title" />
+                <ui:Label name="preview-title" text="プレビュー" class="dennoko-section-title" />
                 <ui:Button name="refresh-button" text="更新" class="dennoko-button-secondary" style="width: 50px;" />
             </ui:VisualElement>
             <ui:TextField name="preview-field" multiline="true" readonly="true" class="tree-preview-field" />
