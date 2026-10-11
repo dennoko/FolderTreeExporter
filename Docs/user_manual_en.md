@@ -70,7 +70,7 @@ The window follows the dennokoworks floating design system and is composed of th
 - Displays temporary confirmation messages upon copying or saving files.
 
 > [!NOTE]
-> For very large folder structures, the preview area truncates rendering after a safe threshold to prevent Unity IMGUI rendering lag. However, the "Copy to Clipboard" and "Save to File" actions will always export the **complete, full-length** text.
+> For very large folder structures, the preview area truncates rendering after a safe threshold to prevent Unity rendering lag. However, the "Copy to Clipboard" and "Save to File" actions will always export the **complete, full-length** text.
 
 ---
 

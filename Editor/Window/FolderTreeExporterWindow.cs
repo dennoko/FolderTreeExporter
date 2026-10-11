@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEditor;
@@ -208,11 +209,12 @@ namespace dennokoworks.FolderTreeExporter
             _modeDropdown = root.Q<DropdownField>("mode-dropdown");
             if (_modeDropdown != null)
             {
-                _modeDropdown.choices = new System.Collections.Generic.List<string>(ModeChoices);
-                _modeDropdown.index = (int)_mode;
+                // 初期値は UpdateUIFromState() が通知なしで流し込む。ここで index / value を
+                // 代入すると変更イベントが飛び、起動時にツリー生成が余分に走る。
+                _modeDropdown.choices = new List<string>(ModeChoices);
                 _modeDropdown.RegisterValueChangedCallback(evt =>
                 {
-                    int idx = ModeChoices.Length > 0 ? Array.IndexOf(ModeChoices, evt.newValue) : -1;
+                    int idx = Array.IndexOf(ModeChoices, evt.newValue);
                     if (idx >= 0)
                     {
                         _mode = (TreeOutputMode)idx;
@@ -225,11 +227,10 @@ namespace dennokoworks.FolderTreeExporter
             _styleDropdown = root.Q<DropdownField>("style-dropdown");
             if (_styleDropdown != null)
             {
-                _styleDropdown.choices = new System.Collections.Generic.List<string>(StyleChoices);
-                _styleDropdown.index = (int)_style;
+                _styleDropdown.choices = new List<string>(StyleChoices);
                 _styleDropdown.RegisterValueChangedCallback(evt =>
                 {
-                    int idx = StyleChoices.Length > 0 ? Array.IndexOf(StyleChoices, evt.newValue) : -1;
+                    int idx = Array.IndexOf(StyleChoices, evt.newValue);
                     if (idx >= 0)
                     {
                         _style = (TreeStyle)idx;
@@ -241,7 +242,6 @@ namespace dennokoworks.FolderTreeExporter
             _showCountsToggle = root.Q<Toggle>("show-counts-toggle");
             if (_showCountsToggle != null)
             {
-                _showCountsToggle.value = _showAssetCounts;
                 _showCountsToggle.RegisterValueChangedCallback(evt =>
                 {
                     _showAssetCounts = evt.newValue;
@@ -252,7 +252,6 @@ namespace dennokoworks.FolderTreeExporter
             _codeBlockToggle = root.Q<Toggle>("code-block-toggle");
             if (_codeBlockToggle != null)
             {
-                _codeBlockToggle.value = _wrapInCodeBlock;
                 _codeBlockToggle.RegisterValueChangedCallback(evt =>
                 {
                     _wrapInCodeBlock = evt.newValue;
@@ -363,9 +362,11 @@ namespace dennokoworks.FolderTreeExporter
             {
                 _treeText = string.Empty;
                 if (_previewField != null) _previewField.value = "フォルダを指定するとツリーが表示されます。";
+                _refreshButton?.SetEnabled(false);
                 SetActionButtonsEnabled(false);
                 return;
             }
+            _refreshButton?.SetEnabled(true);
 
             _treeText = FolderTreeBuilder.Build(path, new TreeBuildOptions
             {

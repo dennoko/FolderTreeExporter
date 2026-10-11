@@ -30,8 +30,8 @@
             <ui:Label text="SETTINGS" class="dennoko-section-title dennoko-card-header" />
             <ui:DropdownField name="mode-dropdown" label="出力モード" />
             <ui:DropdownField name="style-dropdown" label="ツリータイプ" />
-            <ui:Toggle name="show-counts-toggle" text="アセット件数を表示" style="margin-top: 6px;" />
-            <ui:Toggle name="code-block-toggle" text="Markdownコードブロックで囲む (```)" style="margin-top: 4px;" />
+            <ui:Toggle name="show-counts-toggle" text="アセット件数を表示" tooltip="「フォルダ + アセットタイプ」モードで、種別ごとのファイル件数を併記します。" style="margin-top: 6px;" />
+            <ui:Toggle name="code-block-toggle" text="Markdownコードブロックで囲む (```)" tooltip="出力全体を ``` で囲みます。Discord や GitHub 等へ貼り付ける際の桁ズレ防止用です。" style="margin-top: 4px;" />
         </ui:VisualElement>
 
         <!-- プレビュー カード -->
